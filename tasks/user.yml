@@ -1,0 +1,12 @@
+- name: Create the CryoSparc user if it doesn't already exist.
+  user:
+    name: "{{ cryosparc_user }}"
+    home: "{{ cryosparc_user_home }}"
+    generate_ssh_key: yes
+  register: cryosparc_user_results
+
+- name: Add the passwordless SSH public key to the CryoSparc user's authorized_keys
+  authorized_key:
+    user: "{{ cryosparc_user }}"
+    state: present
+    key: "{{ cryosparc_user_results.ssh_public_key }}"

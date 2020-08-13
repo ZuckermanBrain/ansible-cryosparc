@@ -1,0 +1,59 @@
+- name: Check if the CryoSparc2 master installer is already downloaded
+  stat:
+    path: /tmp/cryosparc2_master.tar.gz
+  register: master_installer_check
+
+- name: Download the CryoSparc2 master installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  get_url:
+    url: "https://get.cryosparc.com/download/master-latest/{{ cryosparc_license_id }}"
+    dest: /tmp/cryosparc2_master.tar.gz
+  no_log: true
+  when: not master_installer_check.stat.exists
+
+- name: Ensure that install path exists
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  file:
+    path: "{{ cryosparc_install_path }}"
+    state: directory
+    owner: "{{ cryosparc_user }}"
+    group: "{{ cryosparc_user }}"
+
+- name: Check if the CryoSparc2 master installer is already untarred
+  stat:
+    path: "{{ cryosparc_install_path }}/cryosparc2_master"
+  register: master_untar_check
+
+- name: Untar the CryoSparc2 master installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  unarchive:
+    src: /tmp/cryosparc2_master.tar.gz
+    remote_src: yes
+    dest: "{{ cryosparc_install_path }}"
+  when: not master_untar_check.stat.exists
+
+- name: Check if the CryoSparc2 master has already been installed.
+  stat:
+    path: "{{ cryosparc_install_path }}/cryosparc2_master/config.sh"
+  register: master_installation_check
+
+# We prepend with /bin/bash because the installer doesn't use a shebang
+- name: Run the CryoSparc2 master installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  command: "/bin/bash {{ cryosparc_install_path }}/cryosparc2_master/install.sh --yes --license ${LICENSE_ID}  --hostname {{ cryosparc_master_hostname }} --dbpath {{ cryosparc_db_path }} --port {{ cryosparc_port_number }}"
+  environment:
+    LICENSE_ID: "{{ cryosparc_license_id }}"
+  when: not master_installation_check.stat.exists
+
+- name: Start CryoSparc2 and create the CryoSparc2 admin user.
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  shell: |
+    source ~/.bashrc
+    cryosparcm start
+    export CRYOSPARC_PASSWORD={{ cryosparc_user_password }}
+    cryosparcm createuser --email {{ cryosparc_user_email  }} --password ${CRYOSPARC_PASSWORD}  --name '{{ cryosparc_user_fullname }}'

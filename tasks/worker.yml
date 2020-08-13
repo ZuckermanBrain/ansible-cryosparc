@@ -1,0 +1,41 @@
+# CUDA 10.2 is the max version of CUDA supported by CryoSparc 2 as of August 2020
+- name: Download the CUDA 10.2 installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  get_url:
+    url: http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
+    dest: /tmp/cuda_10.2.89_440.33.01_linux.run
+    mode: "0770"
+
+- name: Run the CUDA 10.2 installer to install CUDA toolkit to a user-specific directory
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  command: "/tmp/cuda_10.2.89_440.33.01_linux.run --silent --toolkit --installpath={{ cryosparc_cuda_path }}"
+
+- name: Download the CryoSparc2 worker installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  get_url:
+    url: "https://get.cryosparc.com/download/worker-latest/{{ cryosparc_license_id }}"
+    dest: /tmp/cryosparc2_worker.tar.gz
+  no_log: true
+
+- name: Untar the CryoSparc2 worker installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  unarchive:
+    src: /tmp/cryosparc2_worker.tar.gz
+    remote_src: yes
+    dest: "{{ cryosparc_install_path }}"
+
+- name: Run the CryoSparc2 worker installer
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  command: "{{ cryosparc_install_path }}/cryosparc2_worker/install.sh --license ${LICENSE_ID} --cudapath {{ cryosparc_cuda_path }}"
+  environment:
+    LICENSE_ID: "{{ cryosparc_license_id }}"
+
+- name: Connect the CryoSparc2 worker to the master
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  command: "{{ cryosparc_install_path }}/cryosparc2_worker/bin/cryosparcw connect --worker {{ cryosparc_worker_hostname }} --master {{ cryosparc_master_hostname }} --port {{ cryosparc_port_num }} --ssdpath {{ cryosparc_ssd_path }}"

@@ -1,2 +1,17 @@
 ---
 # tasks file for app-cryosparc
+
+- name: Include user creation tasks
+  include_tasks: user.yml
+
+- name: Include master node installation tasks
+  include_tasks: master.yml
+  when: "'master' in cryosparc_roles"
+
+- name: Include worker node installation tasks
+  include_tasks: worker.yml
+  when: "'cluster' in cryosparc_roles or 'worker' in cryosparc_roles"
+
+- name: Include cluster host installation tasks
+  include_tasks: cluster.yml
+  when: "'cluster' in cryosparc_roles"

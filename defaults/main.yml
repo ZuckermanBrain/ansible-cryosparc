@@ -1,2 +1,22 @@
 ---
 # defaults file for app-cryosparc
+cryosparc_roles: []
+
+# Universal variables
+cryosparc_user: cryosparc_user
+cryosparc_user_home: /home/cryosparc_user
+cryosparc_install_path: "{{ cryosparc_user_home }}/software/cryosparc"
+cryosparc_license_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+cryosparc_port_number: 39000
+cryosparc_master_hostname: cryoem1.structura.bio
+
+# Master-specific variables
+cryosparc_user_fullname: Someone
+cryosparc_user_email: someone@structura.bio
+cryosparc_user_password: Password123
+cryosparc_db_path: "{{ cryosparc_user_home }}//cryosparc_database"
+
+# Worker-specific variables
+cryosparc_worker_hostname: cryoem2.structura.bio
+cryosparc_cuda_path: /usr/local/cuda
+cryosparc_ssd_path: /scratch/cryosparc_cache
