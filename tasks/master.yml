@@ -3,6 +3,16 @@
     path: /tmp/cryosparc2_master.tar.gz
   register: master_installer_check
 
+- name: Check if the CryoSparc2 master installer is already untarred
+  stat:
+    path: "{{ cryosparc_install_path }}/cryosparc2_master"
+  register: master_untar_check
+
+- name: Check if the CryoSparc2 master has already been installed.
+  stat:
+    path: "{{ cryosparc_install_path }}/cryosparc2_master/config.sh"
+  register: master_installation_check
+
 - name: Download the CryoSparc2 master installer
   become: true
   become_user: "{{ cryosparc_user }}"
@@ -10,7 +20,7 @@
     url: "https://get.cryosparc.com/download/master-latest/{{ cryosparc_license_id }}"
     dest: /tmp/cryosparc2_master.tar.gz
   no_log: true
-  when: not master_installer_check.stat.exists
+  when: not master_installer_check.stat.exists and not master_untar_check.stat.exists and not master_installation_check.stat.exists
 
 - name: Ensure that install path exists
   become: true
@@ -21,11 +31,6 @@
     owner: "{{ cryosparc_user }}"
     group: "{{ cryosparc_user }}"
 
-- name: Check if the CryoSparc2 master installer is already untarred
-  stat:
-    path: "{{ cryosparc_install_path }}/cryosparc2_master"
-  register: master_untar_check
-
 - name: Untar the CryoSparc2 master installer
   become: true
   become_user: "{{ cryosparc_user }}"
@@ -33,12 +38,7 @@
     src: /tmp/cryosparc2_master.tar.gz
     remote_src: yes
     dest: "{{ cryosparc_install_path }}"
-  when: not master_untar_check.stat.exists
-
-- name: Check if the CryoSparc2 master has already been installed.
-  stat:
-    path: "{{ cryosparc_install_path }}/cryosparc2_master/config.sh"
-  register: master_installation_check
+  when: not master_untar_check.stat.exists and not master_installation_check.stat.exists
 
 # We prepend with /bin/bash because the installer doesn't use a shebang
 - name: Run the CryoSparc2 master installer
@@ -49,11 +49,52 @@
     LICENSE_ID: "{{ cryosparc_license_id }}"
   when: not master_installation_check.stat.exists
 
+# The installer doesn't add CryoSparc to the path via a bashrc file in non-interactive mode.
+- name: Ensure that CryoSparc user's bashrc has line to update path.
+  lineinfile:
+    path: "{{ cryosparc_user_home }}/.bashrc"
+    line: "export PATH={{ cryosparc_install_path }}/cryosparc2_master/bin:${PATH}"
+    create: yes
+  when: not master_installation_check.stat.exists
+
+# We restart cryosparc immediately afterwards because for some reason the login dialogue doesn't load properly if you don't do this.
 - name: Start CryoSparc2 and create the CryoSparc2 admin user.
   become: true
   become_user: "{{ cryosparc_user }}"
   shell: |
-    source ~/.bashrc
     cryosparcm start
     export CRYOSPARC_PASSWORD={{ cryosparc_user_password }}
     cryosparcm createuser --email {{ cryosparc_user_email  }} --password ${CRYOSPARC_PASSWORD}  --name '{{ cryosparc_user_fullname }}'
+    cryosparcm restart
+  when: not master_installation_check.stat.exists
+
+- name: Remove CryoSparc master tar.
+  file:
+    path: /tmp/cryosparc2_master.tar.gz
+    state: absent
+  when: not master_untar_check.stat.exists and not master_installation_check.stat.exists
+
+- name: Populate cluster_info.json
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  copy:
+    content: "{{ cryosparc_cluster_info_config | to_json }}"
+    dest: "{{ cryosparc_install_path }}/cryosparc2_master/cluster_info.json"
+  when: cryosparc_cluster
+
+- name: Populate cluster_script.sh
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  copy:
+    src:  "{{ cryosparc_cluster_scheduler }}_cluster_script.sh"
+    dest: "{{ cryosparc_install_path }}/cryosparc2_master/cluster_script.sh"
+  when: cryosparc_cluster
+
+- name: Create cluster configuration
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  shell: |
+    export PATH={{ cryosparc_install_path }}/cryosparc2_master/bin:${PATH}
+    cd {{ cryosparc_install_path }}/cryosparc2_master
+    cryosparcm cluster connect
+  when: cryosparc_cluster

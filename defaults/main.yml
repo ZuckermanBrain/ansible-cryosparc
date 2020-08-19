@@ -1,6 +1,16 @@
 ---
 # defaults file for app-cryosparc
+# Acceptable roles include "master", "worker", and "cluster".  
+# If using "cluster", then you must also use "worker" and the
+# crysoparc_cluster variable should be toggled to True.
 cryosparc_roles: []
+
+# Boolean variable to indicate if there is a cluster.
+# This is necessary because the CryoSparc cluster configuration
+# requires non-standard actions on both the master node and a worker node within the cluster.
+# Namely, a cluster worker does not register with the master and the master must
+# execute a command on its end to register the cluster.
+cryosparc_cluster: False
 
 # Universal variables
 cryosparc_user: cryosparc_user
@@ -18,5 +28,25 @@ cryosparc_db_path: "{{ cryosparc_user_home }}//cryosparc_database"
 
 # Worker-specific variables
 cryosparc_worker_hostname: cryoem2.structura.bio
-cryosparc_cuda_path: /usr/local/cuda
-cryosparc_ssd_path: /scratch/cryosparc_cache
+# Define the following if you are using GPUs or SSD cache
+#cryosparc_cuda_path: /usr/local/cuda
+#cryosparc_ssd_path: /scratch/cryosparc_cache
+
+# Scheduler used for cryosparc cluster
+# Currently "slurm" is the only valid value.
+cryosparc_cluster_scheduler: slurm
+
+# Define this if you are using a cluster.
+# Note that all hosts with the cluster role also need to have the worker role.
+# You have to use single-quoted string literals for many of these so that Ansible's templating
+# doesn't conflict with CryoSparc's templating.
+#cryosparc_cluster_info_config:
+#    name : 'slurmcluster'
+#    worker_bin_path : "{{ cryosparc_install_path }}/cryosparc2_worker/bin/cryosparcw"
+#    cache_path : "{{ cryosparc_ssd_path }}"
+#    send_cmd_tpl : 'ssh loginnode {{ command }}'
+#    qsub_cmd_tpl : 'sbatch {{ script_path_abs }}'
+#    qstat_cmd_tpl : 'squeue -j {{ cluster_job_id }}'
+#    qdel_cmd_tpl : 'scancel {{ cluster_job_id }}'
+#    qinfo_cmd_tpl : 'sinfo'
+#    transfer_cmd_tpl : 'scp {{ src_path }} loginnode:{{ dest_path }}'

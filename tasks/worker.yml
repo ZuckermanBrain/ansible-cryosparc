@@ -1,3 +1,28 @@
+- name: Check if the CUDA installer is already downloaded
+  stat:
+    path: /tmp/cuda_10.2.89_440.33.01_linux.run
+  register: cuda_installer_check
+
+- name: Check if CUDA is already installed.
+  stat:
+    path: "{{ cryosparc_cuda_path|default('', true)}}/targets/x87_64-linux/lib/libcudart.so"
+  register: cuda_installation_check
+
+- name: Check if the CryoSparc2 worker installer is already downloaded
+  stat:
+    path: /tmp/cryosparc2_worker.tar.gz
+  register: worker_installer_check
+
+- name: Check if the CryoSparc2 worker installer is already untarred
+  stat:
+    path: "{{ cryosparc_install_path }}/cryosparc2_worker"
+  register: worker_untar_check
+
+- name: Check if the CryoSparc2 worker has already been installed.
+  stat:
+    path: "{{ cryosparc_install_path }}/cryosparc2_worker/config.sh"
+  register: worker_installation_check
+
 # CUDA 10.2 is the max version of CUDA supported by CryoSparc 2 as of August 2020
 - name: Download the CUDA 10.2 installer
   become: true
@@ -6,11 +31,19 @@
     url: http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
     dest: /tmp/cuda_10.2.89_440.33.01_linux.run
     mode: "0770"
+  when: "not cuda_installer_check.stat.exists and not cuda_installation_check.stat.exists and {{ cryosparc_cuda_path|default(false, true) }}"
 
 - name: Run the CUDA 10.2 installer to install CUDA toolkit to a user-specific directory
   become: true
   become_user: "{{ cryosparc_user }}"
   command: "/tmp/cuda_10.2.89_440.33.01_linux.run --silent --toolkit --installpath={{ cryosparc_cuda_path }}"
+  when: "not cuda_installation_check.stat.exists and {{ cryosparc_cuda_path|default(false, true) }}"
+
+- name: Remove the CUDA 10.2 installer
+  file:
+    path: /tmp/cuda_10.2.89_440.33.01_linux.run
+    state: absent
+  when: "not cuda_installation_check.stat.exists and {{ cryosparc_cuda_path|default(false, true) }}"
 
 - name: Download the CryoSparc2 worker installer
   become: true
@@ -19,6 +52,16 @@
     url: "https://get.cryosparc.com/download/worker-latest/{{ cryosparc_license_id }}"
     dest: /tmp/cryosparc2_worker.tar.gz
   no_log: true
+  when: not worker_installer_check.stat.exists and not worker_untar_check.stat.exists and not worker_installation_check.stat.exists
+
+- name: Ensure that install path exists
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  file:
+    path: "{{ cryosparc_install_path }}"
+    state: directory
+    owner: "{{ cryosparc_user }}"
+    group: "{{ cryosparc_user }}"
 
 - name: Untar the CryoSparc2 worker installer
   become: true
@@ -27,15 +70,43 @@
     src: /tmp/cryosparc2_worker.tar.gz
     remote_src: yes
     dest: "{{ cryosparc_install_path }}"
+  when: not worker_untar_check.stat.exists and not worker_installation_check.stat.exists
 
+# We prepend with /bin/bash because the installer doesn't use a shebang
 - name: Run the CryoSparc2 worker installer
   become: true
   become_user: "{{ cryosparc_user }}"
-  command: "{{ cryosparc_install_path }}/cryosparc2_worker/install.sh --license ${LICENSE_ID} --cudapath {{ cryosparc_cuda_path }}"
+  command: |
+    /bin/bash {{ cryosparc_install_path }}/cryosparc2_worker/install.sh \
+      --license ${LICENSE_ID} \
+      {% if cryosparc_cuda_path|default(false, true) %}--cudapath {{ cryosparc_cuda_path }}{% endif %}
+      {% if cryosparc_cuda_path|default(true, true) %}--nogpu {% endif %}
   environment:
     LICENSE_ID: "{{ cryosparc_license_id }}"
+  when: not worker_installation_check.stat.exists
+
+# The installer doesn't add CryoSparc to the path via a bashrc file in non-interactive mode.
+- name: Ensure that CryoSparc user's bashrc has line to update path.
+  lineinfile:
+    path: "{{ cryosparc_user_home }}/.bashrc"
+    line: "export PATH={{ cryosparc_install_path }}/cryosparc2_worker/bin:${PATH}"
+    create: yes
+  when: not worker_installation_check.stat.exists
 
 - name: Connect the CryoSparc2 worker to the master
   become: true
   become_user: "{{ cryosparc_user }}"
-  command: "{{ cryosparc_install_path }}/cryosparc2_worker/bin/cryosparcw connect --worker {{ cryosparc_worker_hostname }} --master {{ cryosparc_master_hostname }} --port {{ cryosparc_port_num }} --ssdpath {{ cryosparc_ssd_path }}"
+  command: |
+    {{ cryosparc_install_path }}/cryosparc2_worker/bin/cryosparcw connect \
+      --worker {{ cryosparc_worker_hostname }} \
+      --master {{ cryosparc_master_hostname }} \
+      --port {{ cryosparc_port_number }} \
+      {% if cryosparc_ssd_path|default(false, true) %}--ssdpath {{ cryosparc_ssd_path }}{% endif %}
+      {% if cryosparc_ssd_path|default(true, true) %}--nossd{% endif %}
+  when: not worker_installation_check.stat.exists and not cryosparc_cluster
+
+- name: Remove CryoSparc worker tar.
+  file:
+    path: /tmp/cryosparc2_worker.tar.gz
+    state: absent
+  when: not worker_untar_check.stat.exists and not worker_installation_check.stat.exists

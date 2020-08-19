@@ -1,8 +1,19 @@
 ---
 # tasks file for app-cryosparc
 
+- name: Install prerequisite dependencies
+  package:
+    name: curl
+    state: present
+
 - name: Include user creation tasks
   include_tasks: user.yml
+
+# We install the worker first for cluster configurations.
+# This ensures that the situation where the master and a cluster node are the same node are supported.
+- name: Include worker node installation tasks
+  include_tasks: worker.yml
+  when: "'worker' in cryosparc_roles and 'cluster' in cryosparc_roles and cryosparc_cluster"
 
 - name: Include master node installation tasks
   include_tasks: master.yml
@@ -10,8 +21,4 @@
 
 - name: Include worker node installation tasks
   include_tasks: worker.yml
-  when: "'cluster' in cryosparc_roles or 'worker' in cryosparc_roles"
-
-- name: Include cluster host installation tasks
-  include_tasks: cluster.yml
-  when: "'cluster' in cryosparc_roles"
+  when: "'worker' in cryosparc_roles and not cryosparc_cluster"
