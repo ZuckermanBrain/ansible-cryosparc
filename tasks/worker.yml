@@ -61,7 +61,6 @@
     path: "{{ cryosparc_install_path }}"
     state: directory
     owner: "{{ cryosparc_user }}"
-    group: "{{ cryosparc_user }}"
 
 - name: Untar the CryoSparc2 worker installer
   become: true
@@ -83,7 +82,7 @@
       {% if cryosparc_cuda_path|default(true, true) %}--nogpu {% endif %}
   environment:
     LICENSE_ID: "{{ cryosparc_license_id }}"
-  when: not worker_installation_check.stat.exists
+  when: "not worker_installation_check.stat.exists and 'standalone' not in cryosparc_roles"
 
 # The installer doesn't add CryoSparc to the path via a bashrc file in non-interactive mode.
 - name: Ensure that CryoSparc user's bashrc has line to update path.
@@ -103,7 +102,7 @@
       --port {{ cryosparc_port_number }} \
       {% if cryosparc_ssd_path|default(false, true) %}--ssdpath {{ cryosparc_ssd_path }}{% endif %}
       {% if cryosparc_ssd_path|default(true, true) %}--nossd{% endif %}
-  when: not worker_installation_check.stat.exists and not cryosparc_cluster
+  when: "not worker_installation_check.stat.exists and not cryosparc_cluster and 'standalone' not in cryosparc_roles"
 
 - name: Remove CryoSparc worker tar.
   file:

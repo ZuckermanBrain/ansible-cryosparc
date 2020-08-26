@@ -9,11 +9,11 @@
 - name: Include user creation tasks
   include_tasks: user.yml
 
-# We install the worker first for cluster configurations.
+# We install the worker first for cluster and single user configurations.
 # This ensures that the situation where the master and a cluster node are the same node are supported.
 - name: Include worker node installation tasks
   include_tasks: worker.yml
-  when: "'worker' in cryosparc_roles and 'cluster' in cryosparc_roles and cryosparc_cluster"
+  when: "'worker' in cryosparc_roles and (('cluster' in cryosparc_roles and cryosparc_cluster)) or ('standalone' in cryosparc_roles)"
 
 - name: Include master node installation tasks
   include_tasks: master.yml
@@ -21,4 +21,4 @@
 
 - name: Include worker node installation tasks
   include_tasks: worker.yml
-  when: "'worker' in cryosparc_roles and not cryosparc_cluster"
+  when: "'worker' in cryosparc_roles and not cryosparc_cluster and 'standalone' not in cryosparc_roles"

@@ -29,7 +29,6 @@
     path: "{{ cryosparc_install_path }}"
     state: directory
     owner: "{{ cryosparc_user }}"
-    group: "{{ cryosparc_user }}"
 
 - name: Untar the CryoSparc2 master installer
   become: true
@@ -47,7 +46,26 @@
   command: "/bin/bash {{ cryosparc_install_path }}/cryosparc2_master/install.sh --yes --license ${LICENSE_ID}  --hostname {{ cryosparc_master_hostname }} --dbpath {{ cryosparc_db_path }} --port {{ cryosparc_port_number }}"
   environment:
     LICENSE_ID: "{{ cryosparc_license_id }}"
-  when: not master_installation_check.stat.exists
+  when: "not master_installation_check.stat.exists and 'standalone' not in cryosparc_roles"
+
+- name: Run the CryoSparc2 master installer for a standalone deployment
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  command: |
+    /bin/bash {{ cryosparc_install_path }}/cryosparc2_master/install.sh \
+      --standalone \
+      --yes \
+      --license ${LICENSE_ID} \
+      --worker_path {{ cryosparc_install_path }}/cryosparc2_worker/ \
+      {% if cryosparc_cuda_path|default(false, true) %}--cudapath {{ cryosparc_cuda_path }} \ {% endif %}
+      {% if cryosparc_ssd_path|default(false, true) %}--ssdpath {{ cryosparc_ssd_path }} \{% endif %}
+      --initial_email {{ cryosparc_user_email  }} \
+      --initial_password ${CRYOSPARC_PASSWORD} \
+      --initial_name '{{ cryosparc_user_fullname }}'
+  environment:
+    LICENSE_ID: "{{ cryosparc_license_id }}"
+    CRYOSPARC_PASSWORD : "{{ cryosparc_user_password }}"
+  when: "not master_installation_check.stat.exists and 'standalone' in cryosparc_roles"
 
 # The installer doesn't add CryoSparc to the path via a bashrc file in non-interactive mode.
 - name: Ensure that CryoSparc user's bashrc has line to update path.
@@ -66,7 +84,7 @@
     export CRYOSPARC_PASSWORD={{ cryosparc_user_password }}
     cryosparcm createuser --email {{ cryosparc_user_email  }} --password ${CRYOSPARC_PASSWORD}  --name '{{ cryosparc_user_fullname }}'
     cryosparcm restart
-  when: not master_installation_check.stat.exists
+  when: "not master_installation_check.stat.exists and 'standalone' not in cryosparc_roles"
 
 - name: Remove CryoSparc master tar.
   file:
