@@ -57,8 +57,8 @@
       --yes \
       --license ${LICENSE_ID} \
       --worker_path {{ cryosparc_install_path }}/cryosparc2_worker/ \
-      {% if cryosparc_cuda_path|default(false, true) %}--cudapath {{ cryosparc_cuda_path }} \ {% endif %}
-      {% if cryosparc_ssd_path|default(false, true) %}--ssdpath {{ cryosparc_ssd_path }} \{% endif %}
+      --cudapath {{ cryosparc_cuda_path }} \ 
+      --ssdpath {{ cryosparc_ssd_path }} \
       --initial_email {{ cryosparc_user_email  }} \
       --initial_password ${CRYOSPARC_PASSWORD} \
       --initial_name '{{ cryosparc_user_fullname }}'
