@@ -48,6 +48,13 @@
     LICENSE_ID: "{{ cryosparc_license_id }}"
   when: "not master_installation_check.stat.exists and 'standalone' not in cryosparc_roles"
 
+- name: Fix the CryoSparc2 master installer for a standalone deployment
+  lineinfile:
+    path: "{{ cryosparc_install_path }}/cryosparc2_master/install.sh"
+    regexp: '\. \./install\.sh'
+    line: "/bin/bash ./install.sh --license $LICENSE_ID --cudapath $CUDA_PATH --standalone"
+  when: "not master_installation_check.stat.exists and 'standalone' in cryosparc_roles"
+
 - name: Run the CryoSparc2 master installer for a standalone deployment
   become: true
   become_user: "{{ cryosparc_user }}"
@@ -75,16 +82,23 @@
     create: yes
   when: not master_installation_check.stat.exists
 
-# We restart cryosparc immediately afterwards because for some reason the login dialogue doesn't load properly if you don't do this.
 - name: Start CryoSparc2 and create the CryoSparc2 admin user.
   become: true
   become_user: "{{ cryosparc_user }}"
   shell: |
+    export PATH={{ cryosparc_install_path }}/cryosparc2_master/bin:${PATH}
     cryosparcm start
     export CRYOSPARC_PASSWORD={{ cryosparc_user_password }}
     cryosparcm createuser --email {{ cryosparc_user_email  }} --password ${CRYOSPARC_PASSWORD}  --name '{{ cryosparc_user_fullname }}'
-    cryosparcm restart
   when: "not master_installation_check.stat.exists and 'standalone' not in cryosparc_roles"
+
+# We restart cryosparc immediately afterwards because for some reason the login dialogue doesn't load properly if you don't do this.
+- name: Restart CryoSparc2 
+  become: true
+  become_user: "{{ cryosparc_user }}"
+  shell: |
+    export PATH={{ cryosparc_install_path }}/cryosparc2_master/bin:${PATH}
+    cryosparcm restart
 
 - name: Remove CryoSparc master tar.
   file:
